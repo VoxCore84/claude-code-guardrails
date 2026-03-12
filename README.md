@@ -2,64 +2,23 @@
 
 Runtime hooks that catch what Claude Code gets wrong.
 
-After 140 sessions on a 2-million-line C++ codebase, I documented 16 patterns where Claude Code misreports what it actually did — claiming files were applied when they weren't, running verification queries that can only return success, guessing database schemas instead of checking them.
-
-Prompt-based rules don't fix this. Runtime hooks do.
-
-**[Full write-up on DEV Community →](https://dev.to/voxcore84)**
-
-## The Problem
-
-Claude Code writes excellent code. But the execution layer between "write this" and "I wrote it" has gaps:
-
-- **Phantom execution** — claims a command ran when the tool log proves it didn't
-- **Silent edit failures** — Edit tool matches the wrong occurrence, corrupts a different location
-- **Theater verification** — runs QA queries that can only return success (e.g., checking if source rows exist after a copy)
-- **Apology loops** — correctly diagnoses a bug, describes the fix, then doesn't apply it or regenerates the same broken code ([874 thumbs-up](https://github.com/anthropics/claude-code/issues/3382))
-
-Full taxonomy of all 16 patterns: **[TAXONOMY.md](TAXONOMY.md)**
-
-## The Hooks
-
-Each hook is a standalone repo you can install independently. Two of them matter most:
-
-### Edit Verifier (PostToolUse)
-
-Reads every file back after Claude edits it. Verifies the new content is there and the old content is gone. Caught 2 real silent failures in its first 2 days — wrong-occurrence replacements that would have been invisible corruption.
-
-**→ [claude-code-edit-verifier](https://github.com/VoxCore84/claude-code-edit-verifier)**
-
-Based on [@mvanhorn's PR #32755](https://github.com/anthropics/claude-code/pull/32755) with three improvements: configurable threshold, old-string-gone verification, and false-alarm reduction.
-
-### SQL Safety Gate (PreToolUse)
-
-Intercepts destructive SQL before it executes — DROP TABLE, TRUNCATE, DELETE without WHERE, ALTER DROP COLUMN. Works with Bash commands and MCP database tools. Configurable patterns and safe overrides.
-
-**→ [claude-code-sql-safety](https://github.com/VoxCore84/claude-code-sql-safety)**
-
-This exists because Claude Code [ran `terraform destroy` on a production database](https://news.ycombinator.com/item?id=47278720), wiping 2.5 years of student data.
-
-### Other Hooks
-
-| Hook | What it does | Repo |
-|------|-------------|------|
-| **Context Injector** | Re-injects critical rules on every prompt when keywords match | [claude-code-context-injector](https://github.com/VoxCore84/claude-code-context-injector) |
-| **Compaction Keeper** | Snapshots session state before compaction so rules survive context compression | [claude-code-compaction-keeper](https://github.com/VoxCore84/claude-code-compaction-keeper) |
-| **Workflow Guard** | Fast Python heuristics that catch process violations (<50ms, zero API calls) | [claude-code-workflow-guard](https://github.com/VoxCore84/claude-code-workflow-guard) |
-| **Windows Toasts** | BurntToast notifications when Claude finishes tasks or needs input | [claude-code-windows-toasts](https://github.com/VoxCore84/claude-code-windows-toasts) |
-| **Hook Tester** | Universal test harness — validates all hooks offline with mock payloads | [claude-code-hook-tester](https://github.com/VoxCore84/claude-code-hook-tester) |
-
-## Quick Start
-
-Install the two critical hooks in under a minute:
+## Install
 
 ```bash
-# 1. Clone into your project's hooks directory
-cd your-project/.claude/hooks/
-curl -O https://raw.githubusercontent.com/VoxCore84/claude-code-edit-verifier/master/edit-verifier.py
-curl -O https://raw.githubusercontent.com/VoxCore84/claude-code-sql-safety/master/sql-safety.py
+curl -sL https://raw.githubusercontent.com/VoxCore84/claude-code-guardrails/master/install.sh | bash
+```
 
-# 2. Add to .claude/settings.local.json
+That's it. Two hooks, wired and ready. Start a new Claude Code session.
+
+Or do it manually:
+
+```bash
+# Copy hooks into your project
+mkdir -p .claude/hooks
+curl -sL https://raw.githubusercontent.com/VoxCore84/claude-code-guardrails/master/hooks/edit-verifier.py -o .claude/hooks/edit-verifier.py
+curl -sL https://raw.githubusercontent.com/VoxCore84/claude-code-guardrails/master/hooks/sql-safety.py -o .claude/hooks/sql-safety.py
+
+# Add to .claude/settings.local.json (create if it doesn't exist)
 ```
 
 ```json
@@ -81,19 +40,69 @@ curl -O https://raw.githubusercontent.com/VoxCore84/claude-code-sql-safety/maste
 }
 ```
 
-That's it. The edit verifier reads every file back after edits. The SQL guard blocks destructive operations before they execute.
+## What the hooks do
 
-## Background
+### Edit Verifier (PostToolUse)
 
-These hooks came out of 140 documented sessions where I tracked every gap between what Claude Code claimed and what actually happened. The full taxonomy with all 16 patterns, linked GitHub issues, and community validation is in [TAXONOMY.md](TAXONOMY.md).
+After every `Edit` tool call, reads the file back from disk and checks:
 
-Meta-issue on anthropics/claude-code: **[#32650](https://github.com/anthropics/claude-code/issues/32650)**
+1. The new content is present (edit actually applied)
+2. The old content is gone (correct occurrence was replaced)
+3. If both checks fail, **blocks** and tells Claude to re-read the file
 
-Related community work:
-- [@mvanhorn's edit verification PR](https://github.com/anthropics/claude-code/pull/32755)
+**Real result:** Caught 2 silent failures in its first 2 days — both wrong-occurrence replacements on a 2-million-line codebase. Without the hook, those would have been invisible corruption found sessions later.
+
+Based on [@mvanhorn's PR #32755](https://github.com/anthropics/claude-code/pull/32755). Improvements: configurable minimum threshold, old-string-gone verification, false-alarm reduction for legitimate duplicate occurrences.
+
+### SQL Safety Gate (PreToolUse)
+
+Intercepts every `Bash` command and checks for destructive SQL:
+
+- `DROP TABLE` / `DROP DATABASE`
+- `TRUNCATE`
+- `DELETE` without `WHERE`
+- `UPDATE` without `WHERE`
+- `ALTER TABLE ... DROP COLUMN`
+
+If matched, **blocks** the command and asks the user to confirm. Safe patterns (like `DROP IF EXISTS` followed by `CREATE TABLE`) are whitelisted.
+
+Works with mysql, psql, sqlite3, mongosh, and MCP database tools. Patterns are configurable via `config.json`.
+
+**Why this exists:** Claude Code [ran `terraform destroy` on a production database](https://news.ycombinator.com/item?id=47278720), wiping 2.5 years of student data.
+
+## Why hooks instead of rules
+
+I wrote a 2,000-word CLAUDE.md behavioral contract. Detailed rules about verification, error checking, never claiming success without evidence. Claude reads it, follows it — until the context window fills up and the rules start losing the attention competition against 100,000 words of task content.
+
+Rules are context tokens. Hooks are code. Context tokens get ignored. Code doesn't.
+
+> "Rules in prompts are requests. Hooks in code are laws."
+
+## The 16 failure modes
+
+These hooks address the most damaging patterns from a taxonomy of 16 documented failure modes across 140+ sessions. Full details with GitHub issue links and community validation:
+
+**[TAXONOMY.md](TAXONOMY.md)** — all 16 patterns, organized by phase
+
+**[anthropics/claude-code#32650](https://github.com/anthropics/claude-code/issues/32650)** — meta-issue with all sub-issues linked
+
+## More hooks
+
+These are the two highest-impact hooks. For the full collection:
+
+| Hook | What it does |
+|------|-------------|
+| [context-injector](https://github.com/VoxCore84/claude-code-context-injector) | Re-injects critical rules when keywords match |
+| [compaction-keeper](https://github.com/VoxCore84/claude-code-compaction-keeper) | Preserves session state across context compression |
+| [workflow-guard](https://github.com/VoxCore84/claude-code-workflow-guard) | Fast heuristics that catch process violations |
+| [windows-toasts](https://github.com/VoxCore84/claude-code-windows-toasts) | Desktop notifications when Claude needs input |
+| [hook-tester](https://github.com/VoxCore84/claude-code-hook-tester) | Offline test harness for validating hooks |
+
+## Related
+
 - [claude-code-safety-net](https://github.com/kenryu42/claude-code-safety-net) by @kenryu42
-- [Anthropic's postmortem](https://www.anthropic.com/engineering/a-postmortem-of-three-recent-issues) (September 2025)
+- [Anthropic's September 2025 postmortem](https://www.anthropic.com/engineering/a-postmortem-of-three-recent-issues)
 
 ## License
 
-MIT — Copyright (c) 2026 VoxCore84
+MIT
