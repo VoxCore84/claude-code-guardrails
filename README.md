@@ -19,6 +19,7 @@ Or do it manually:
 mkdir -p .claude/hooks
 curl -sL https://raw.githubusercontent.com/VoxCore84/claude-code-guardrails/master/hooks/edit-verifier.py -o .claude/hooks/edit-verifier.py
 curl -sL https://raw.githubusercontent.com/VoxCore84/claude-code-guardrails/master/hooks/sql-safety.py -o .claude/hooks/sql-safety.py
+curl -sL https://raw.githubusercontent.com/VoxCore84/claude-code-guardrails/master/hooks/config.json -o .claude/hooks/config.json
 
 # Add to .claude/settings.local.json (create if it doesn't exist)
 ```

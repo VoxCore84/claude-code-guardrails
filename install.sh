@@ -31,6 +31,9 @@ curl -sL "$REPO/hooks/edit-verifier.py" -o "$HOOKS_DIR/edit-verifier.py"
 echo "Downloading sql-safety.py..."
 curl -sL "$REPO/hooks/sql-safety.py" -o "$HOOKS_DIR/sql-safety.py"
 
+echo "Downloading config.json..."
+curl -sL "$REPO/hooks/config.json" -o "$HOOKS_DIR/config.json"
+
 # Create settings.local.json if it doesn't exist
 SETTINGS=".claude/settings.local.json"
 if [ -f "$SETTINGS" ]; then
