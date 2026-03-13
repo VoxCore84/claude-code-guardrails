@@ -35,7 +35,7 @@ curl -sL "$REPO/hooks/sql-safety.py" -o "$HOOKS_DIR/sql-safety.py"
 SETTINGS=".claude/settings.local.json"
 if [ -f "$SETTINGS" ]; then
     echo ""
-    echo "Found existing $SETTINGS — not overwriting."
+    echo "Found existing $SETTINGS -- not overwriting."
     echo "Add the hook config manually. See: $REPO/hooks/settings.json.example"
 else
     echo "Creating $SETTINGS with hook wiring..."

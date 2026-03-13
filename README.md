@@ -1,5 +1,7 @@
 # Claude Code Guardrails
 
+![Python 3.8+](https://img.shields.io/badge/python-3.8%2B-blue) ![License: MIT](https://img.shields.io/github/license/VoxCore84/claude-code-guardrails) ![GitHub release](https://img.shields.io/github/v/release/VoxCore84/claude-code-guardrails)
+
 Runtime hooks that catch what Claude Code gets wrong.
 
 ## Install
@@ -50,7 +52,7 @@ After every `Edit` tool call, reads the file back from disk and checks:
 2. The old content is gone (correct occurrence was replaced)
 3. If both checks fail, **blocks** and tells Claude to re-read the file
 
-**Real result:** Caught 2 silent failures in its first 2 days — both wrong-occurrence replacements on a 2-million-line codebase. Without the hook, those would have been invisible corruption found sessions later.
+**Real result:** Caught 2 silent failures in its first 2 days -- both wrong-occurrence replacements on a 2-million-line codebase. Without the hook, those would have been invisible corruption found sessions later.
 
 Based on [@mvanhorn's PR #32755](https://github.com/anthropics/claude-code/pull/32755). Improvements: configurable minimum threshold, old-string-gone verification, false-alarm reduction for legitimate duplicate occurrences.
 
@@ -72,7 +74,7 @@ Works with mysql, psql, sqlite3, mongosh, and MCP database tools. Patterns are c
 
 ## Why hooks instead of rules
 
-I wrote a 2,000-word CLAUDE.md behavioral contract. Detailed rules about verification, error checking, never claiming success without evidence. Claude reads it, follows it — until the context window fills up and the rules start losing the attention competition against 100,000 words of task content.
+I wrote a 2,000-word CLAUDE.md behavioral contract. Detailed rules about verification, error checking, never claiming success without evidence. Claude reads it, follows it -- until the context window fills up and the rules start losing the attention competition against 100,000 words of task content.
 
 Rules are context tokens. Hooks are code. Context tokens get ignored. Code doesn't.
 
@@ -82,9 +84,9 @@ Rules are context tokens. Hooks are code. Context tokens get ignored. Code doesn
 
 These hooks address the most damaging patterns from a taxonomy of 16 documented failure modes across 140+ sessions. Full details with GitHub issue links and community validation:
 
-**[TAXONOMY.md](TAXONOMY.md)** — all 16 patterns, organized by phase
+**[TAXONOMY.md](TAXONOMY.md)** -- all 16 patterns, organized by phase
 
-**[anthropics/claude-code#32650](https://github.com/anthropics/claude-code/issues/32650)** — meta-issue with all sub-issues linked
+**[anthropics/claude-code#32650](https://github.com/anthropics/claude-code/issues/32650)** -- meta-issue with all sub-issues linked
 
 ## More hooks
 
